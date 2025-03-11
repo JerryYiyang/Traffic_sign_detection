@@ -1,42 +1,39 @@
-from skimage.feature import hog
-from skimage import io, color, exposure, feature, filters, transform, util
+from skimage import io, color, filters, util
 import os
-import numpy as np
-import matplotlib.pyplot as plt
+import sys
 
-def preprocess(image, size=(128,128)):
-    results = {}
 
-    resized = transform.resize(image, size, anti_aliasing=True)
-    gray = color.rgb2gray(resized)
-
-    results['gray'] = util.img_as_ubyte(gray)
-    enhanced = exposure.equalize_adapthist(gray, clip_limit=0.03)
-    results['enhanced'] = util.img_as_ubyte(enhanced)
-
-    smoothed = filters.gaussian(enhanced, sigma=1, preserve_range=True)
-    results['smoothed'] = util.img_as_ubyte(smoothed)
-    
-    return results
-
-def batch_preprocess(image_dir, label_dir, output_dir, size=(128, 128)):
-
-    processed_data = {'images': [], 'labels': [],
-                      'filename': []}
+def preprocess(image_dir, output_dir):
     if output_dir is not None:
         os.makedirs(output_dir, exist_ok=True)
     
     image_files = os.listdir(image_dir)
+    count = 0
+    num_images = len(image_files)
     for img_file in image_files:
+        if count % 100 == 0:
+            print(f"At {count}/{num_images} images")
+        count += 1
         base_name = os.path.splitext(img_file)[0]
         img_path = os.path.join(image_dir, img_file)
-        label_path = os.path.join(label_dir, base_name + '.txt')
 
-        if not os.path.exists(label_path):
-            continue
-        with open(label_path, 'r') as f:
-            label_data = f.readlines()
-        
-        image = io.imread(img_path)
-        processed = preprocess(image)
-        
+        try:
+            image = io.imread(img_path)
+            gray = color.rgb2gray(image)
+            smoothed = filters.gaussian(gray, sigma=1, preserve_range=True)
+            processed = util.img_as_ubyte(smoothed)
+            if output_dir is not None:
+                output_path = os.path.join(output_dir, f"{base_name}.png")
+                io.imsave(output_path, processed, check_contrast=False)
+        except Exception as e:
+            print(f"Error processing {img_file}: {str(e)}")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: python preprocess.py image_dir output_dir")
+        exit(1)
+    
+    image_dir = sys.argv[1]
+    output_dir = sys.argv[2]
+
+    preprocess(image_dir, output_dir)
