@@ -11,10 +11,19 @@ import sys
 def hog_feature_extraction(output_dir):
     feature_vectors = []
     processed_imgs = os.listdir(output_dir)
-    for i in range(len(processed_imgs)):
+    print("Extracting hog features...")
+    count = 0
+    num_images = len(processed_imgs)
+    for img_file in processed_imgs:
+        # status check
+        if count % 100 == 0:
+            print(f"At {count}/{num_images} images")
+        count += 1
+        # extract path
+        img_path = os.path.join(output_dir, img_file)
         try: 
             # Read in preprocessed images
-            image = io.imread(processed_imgs)
+            image = io.imread(img_path, as_gray=True)
             # Extract HOG features
             features, hog_image = hog(image, orientations=9, pixels_per_cell=(8, 8),
                                     cells_per_block=(2, 2), visualize=True)
@@ -32,8 +41,6 @@ def preprocess(image_dir, output_dir):
     count = 0
     num_images = len(image_files)
     for img_file in image_files:
-        if count > 300:
-            break
         if count % 100 == 0:
             print(f"At {count}/{num_images} images")
         count += 1
