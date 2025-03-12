@@ -3,9 +3,9 @@ from skimage import color
 from skimage.feature import hog
 from skimage import data, exposure, io
 import matplotlib.pyplot as plt
-
 # USED GEEKS FOR GEEKS AS CODE REFERENCE FOR HOG
 # Loading an example image
+
 image = io.imread("./car/train/images/00000_00000_00025_png.rf.1fccf78acacf5d504932d3ac185e6f5e.jpg")
 image_gray = color.rgb2gray(image) # Converting image to grayscale
 
