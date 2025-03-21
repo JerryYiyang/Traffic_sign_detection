@@ -59,6 +59,32 @@ def shape_features(dir):
             print(f"Error processing {img_file}: {str(e)}")
     return circles
 
+def predict_cluster(image_path, kmeans_model):
+    image = io.imread(image_path)
+
+    # Extract HOG features
+    features = hog(image, orientations=9, pixels_per_cell=(8, 8), 
+                   cells_per_block=(2, 2), visualize=False)
+    
+    # Ensure features have the correct shape for computation
+    if features is not None:
+        features = features.reshape(1, -1)  # Reshape to (1, n_features)
+        
+        # Get cluster centers from the trained k-means model
+        cluster_centers = kmeans_model.cluster_centers_  # Shape: (n_clusters, n_features)
+        
+        # Compute Euclidean distances between the features and each cluster center
+        distances = np.linalg.norm(cluster_centers - features, axis=1)  # Shape: (n_clusters,)
+        
+        # Find the closest cluster (minimum distance)
+        closest_cluster = np.argmin(distances)
+        
+        print(f"The image belongs to cluster: {closest_cluster} (Min Distance: {distances[closest_cluster]:.4f})")
+        return closest_cluster
+    else:
+        print("Feature extraction failed.")
+        return None
+
 def plot_clusters_2d(feature_vectors, labels):
     # Reduce to 2D using PCA
     pca = PCA(n_components=2)
@@ -76,7 +102,7 @@ def plot_clusters_2d(feature_vectors, labels):
 def kmeans(feature_vectors):
     feature_vectors = np.array(feature_vectors)
     # Apply K-means clustering
-    kmeans = KMeans(n_clusters=10, random_state=42, n_init=100)
+    kmeans = KMeans(n_clusters=10, random_state=42, n_init=10) 
     labels = kmeans.fit_predict(feature_vectors)
     plot_clusters_2d(feature_vectors, labels)
     return kmeans, labels
@@ -86,11 +112,15 @@ def hog_feature_extraction(output_dir):
     count = 0
     feature_vectors = []
     processed_imgs = os.listdir(output_dir)
-    total_imgs = len(processed_imgs)  # Process max 300 images
+    total_imgs = min(300, len(processed_imgs))  # Process max 300 images
     
     for img_file in processed_imgs:
+        if count >= 1000:
+            break
+            
         if count % 100 == 0:
-            print(f"At {count}/{total_imgs} images")
+            print(f"At {count}/{len(processed_imgs)} images")
+            
         try:
             # Read in preprocessed images
             img_path = os.path.join(output_dir, img_file)
