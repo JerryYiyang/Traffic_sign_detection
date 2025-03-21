@@ -8,8 +8,9 @@ import numpy as np
 import sys
 import cv2
 import easyocr
+import red
 
-def shape_features(dir):
+def segment_images(dir):
     count = 0
     processed_imgs = os.listdir(dir)
     total_imgs = len(processed_imgs)  
@@ -62,9 +63,11 @@ def shape_features(dir):
             print(f"Error processing {img_file}: {str(e)}")
     return circles
 
-def detect_numbers(dir):
+def number_features(dir):
     # init EasyOCR reader
     reader = easyocr.Reader(['en'])  # 'en' for English
+    # 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, or S for STOP
+    allowed_labels = ["20", "30", "50", "60", "70", "STOP"] 
     all_feature_vectors = []
     image_files = os.listdir(dir)
     count = 0
@@ -75,14 +78,16 @@ def detect_numbers(dir):
         count += 1
         img_path = os.path.join(dir, img_file)
         try:   
-            image_feature_vector = [] 
+            feature_vector = [] 
             results = reader.readtext(img_path)
-            # text is detected numbers
-            for (bbox, text, prob) in results:
-                image_feature_vector.append(text)
+            #for (bbox, text, prob) in results:
                 #print(f"Detected: {text} (Confidence: {prob:.2f})")
-                # TODO sort??
-            all_feature_vectors.append(image_feature_vector)
+            # detect only permitted characters
+            detected_chars = set(text.upper() for (_, text, _) in results if text.upper() in allowed_labels)
+            # Convert detected items into a one 11D vector
+            feature_vector = [1 if label in detected_chars else 0 for label in allowed_labels]
+            all_feature_vectors.append(feature_vector)
+            #print(feature_vector)
         except Exception as e:
             print(f"Error processing {img_file}: {str(e)}")
     return all_feature_vectors
@@ -318,7 +323,10 @@ if __name__ == "__main__":
     label_dir = sys.argv[3]
 
     preprocess(image_dir, output_dir)
-    shape_features(output_dir)
+    # creates masks and writes to an output directory
+    segment_images(output_dir)
+    nums = number_features("./segmented_data")
+    colors = red.load_corresponding_colors(image_dir, "./masks")
 
     feature_vectors, true_labels = load_features_with_labels("segmented_data", image_dir, label_dir)
 
