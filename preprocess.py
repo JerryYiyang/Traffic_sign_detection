@@ -61,6 +61,9 @@ def shape_features(dir):
             print(f"Error processing {img_file}: {str(e)}")
     return circles
 
+def detect_numbers():
+    return
+
 def predict_cluster(image_path, kmeans_model):
     image = io.imread(image_path)
 
