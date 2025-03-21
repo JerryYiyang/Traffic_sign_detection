@@ -7,6 +7,7 @@ import os
 import numpy as np
 import sys
 import cv2
+import easyocr
 
 def shape_features(dir):
     count = 0
@@ -61,8 +62,30 @@ def shape_features(dir):
             print(f"Error processing {img_file}: {str(e)}")
     return circles
 
-def detect_numbers():
-    return
+def detect_numbers(dir):
+    # init EasyOCR reader
+    reader = easyocr.Reader(['en'])  # 'en' for English
+    all_feature_vectors = []
+    image_files = os.listdir(dir)
+    count = 0
+    num_images = len(image_files)
+    for img_file in image_files:
+        if count % 100 == 0:
+            print(f"Detecting numbers in {count}/{num_images} images")
+        count += 1
+        img_path = os.path.join(dir, img_file)
+        try:   
+            image_feature_vector = [] 
+            results = reader.readtext(img_path)
+            # text is detected numbers
+            for (bbox, text, prob) in results:
+                image_feature_vector.append(text)
+                #print(f"Detected: {text} (Confidence: {prob:.2f})")
+                # TODO sort??
+            all_feature_vectors.append(image_feature_vector)
+        except Exception as e:
+            print(f"Error processing {img_file}: {str(e)}")
+    return all_feature_vectors
 
 def predict_cluster(image_path, kmeans_model):
     image = io.imread(image_path)
