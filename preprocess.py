@@ -46,6 +46,10 @@ def shape_features(dir):
                 output_path = os.path.join("segmented_data/", f"{base_name}_segmented.jpg")
                 cv2.imwrite(output_path, segmented_image)
 
+                os.makedirs("masks", exist_ok=True)
+                output_path = os.path.join("masks/", f"{base_name}_mask.jpg")
+                cv2.imwrite(output_path, mask)
+
                 #cv2.imshow("Segmented Traffic Sign", segmented_image)
                 #cv2.waitKey(0)
             #else:
