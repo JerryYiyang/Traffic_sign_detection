@@ -162,16 +162,153 @@ def preprocess(image_dir, output_dir):
         except Exception as e:
             print(f"Error processing {img_file}: {str(e)}")
 
+def read_label_file(label_path):
+    with open(label_path, 'r') as f:
+        line = f.readline().strip()
+        parts = line.split()
+        if len(parts) >= 1:
+            return parts[0]
+    return None
+
+def load_features_with_labels(segmented_dir, original_image_dir, label_dir):
+    feature_vectors = []
+    true_labels = []
+    count = 0
+    
+    segmented_files = [f for f in os.listdir(segmented_dir) if f.endswith(('.jpg', '.png'))]
+    
+    for segmented_file in segmented_files:
+        if count >= 1000:
+            break
+            
+        if count % 100 == 0:
+            print(f"Processing {count}/{len(segmented_files)} images")
+        base_name = os.path.splitext(segmented_file)[0]
+        if base_name.endswith("_segmented"):
+            original_base = base_name.replace("_segmented", "")
+        else:
+            original_base = base_name
+
+        original_file = None
+        for ext in ['.jpg', '.png']:
+            potential_file = original_base + ext
+            if os.path.exists(os.path.join(original_image_dir, potential_file)):
+                original_file = potential_file
+                break
+        
+        if original_file is None:
+            print(f"Could not find original image for {segmented_file}")
+            continue
+        
+        # Get the label file path based on the original image name
+        label_base = os.path.splitext(original_file)[0]
+        label_path = os.path.join(label_dir, f"{label_base}.txt")
+        
+        if not os.path.exists(label_path):
+            print(f"Label file not found for {original_file}")
+            continue
+        
+        try:
+            # Read segmented image and extract features
+            segmented_path = os.path.join(segmented_dir, segmented_file)
+            image = io.imread(segmented_path)
+            features = hog(image, orientations=9, pixels_per_cell=(8, 8), 
+                        cells_per_block=(2, 2), visualize=False)
+            class_id = read_label_file(label_path)
+            if class_id is None:
+                print(f"Could not parse class ID from {label_path}")
+                continue
+            
+            feature_vectors.append(features)
+            true_labels.append(class_id)
+            count += 1
+        except Exception as e:
+            print(f"Error processing {segmented_file}: {str(e)}")
+    
+    if len(feature_vectors) == 0:
+        print("No valid data found with labels!")
+        return np.array([]), np.array([])
+    
+    return np.array(feature_vectors), np.array(true_labels)
+
+def map_clusters_to_classes(cluster_labels, true_labels):
+    class_names = ['Green Light', 'Red Light', 'Speed Limit 10', 'Speed Limit 100',
+                   'Speed Limit 110', 'Speed Limit 120', 'Speed Limit 20',
+                   'Speed Limit 30', 'Speed Limit 40', 'Speed Limit 50',
+                   'Speed Limit 60', 'Speed Limit 70', 'Speed Limit 80', 'Speed Limit 90', 'Stop']
+    cluster_to_class = {}
+    cluster_to_name = {}
+    
+    for cluster_id in np.unique(cluster_labels):
+        cluster_true_labels = true_labels[cluster_labels == cluster_id]
+        unique_labels, counts = np.unique(cluster_true_labels, return_counts=True)
+        most_common_idx = np.argmax(counts)
+        most_common_label = unique_labels[most_common_idx]
+        try:
+            label_idx = int(most_common_label)
+            class_name = class_names[label_idx] if label_idx < len(class_names) else f"Unknown Class {most_common_label}"
+        except (ValueError, IndexError):
+            class_name = f"Class {most_common_label}"
+        
+        cluster_to_class[cluster_id] = most_common_label
+        cluster_to_name[cluster_id] = class_name
+        
+        print(f"Cluster {cluster_id} -> {class_name} (ID: {most_common_label}, {counts[most_common_idx]}/{len(cluster_true_labels)} images)")
+    
+    return cluster_to_class, cluster_to_name
+
+def predict_class(image_path, kmeans_model, cluster_to_class, cluster_to_name):
+    image = io.imread(image_path)
+
+    features = hog(image, orientations=9, pixels_per_cell=(8, 8), 
+                  cells_per_block=(2, 2), visualize=False)
+    
+    if features is not None:
+        features = features.reshape(1, -1)
+        cluster_centers = kmeans_model.cluster_centers_
+        distances = np.linalg.norm(cluster_centers - features, axis=1)
+        closest_cluster = np.argmin(distances)
+        
+        # Map cluster to class and name
+        if closest_cluster in cluster_to_class:
+            predicted_class = cluster_to_class[closest_cluster]
+            predicted_name = cluster_to_name[closest_cluster]
+            print(f"Image {os.path.basename(image_path)} belongs to: {predicted_name} (Cluster: {closest_cluster}, Distance: {distances[closest_cluster]:.4f})")
+            return predicted_class, predicted_name
+        else:
+            print(f"No class mapping for cluster {closest_cluster}")
+            return None, None
+    else:
+        print("Feature extraction failed")
+        return None, None
+    
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python preprocess.py image_dir output_dir")
+    if len(sys.argv) != 4:
+        print("Usage: python preprocess.py image_dir output_dir label_dir")
         exit(1)
     
     image_dir = sys.argv[1]
     output_dir = sys.argv[2]
+    label_dir = sys.argv[3]
 
     preprocess(image_dir, output_dir)
     shape_features(output_dir)
-    #feature_vectors = hog_feature_extraction(output_dir)
-    #km, labels = kmeans(feature_vectors)
 
+    feature_vectors, true_labels = load_features_with_labels("segmented_data", image_dir, label_dir)
+
+    n_clusters = min(10, len(feature_vectors))
+    kmeans_model = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    cluster_labels = kmeans_model.fit_predict(feature_vectors)
+
+    cluster_to_class, cluster_to_name = map_clusters_to_classes(cluster_labels, true_labels)
+    test_images = [
+        './output_dir/00000_00000_00004_png.rf.8737f80bd4f1455970179b3df433fba5.jpg',
+        './output_dir/00000_00004_00019_png.rf.e587d94b21592a7cce2cdba1b9e0c2b8.jpg',
+        './output_dir/road665_png.rf.853969c1e3fa5fac142f8e7852819a09.jpg'
+    ]
+    
+    for test_image in test_images:
+        if os.path.exists(test_image):
+            predict_class(test_image, kmeans_model, cluster_to_class, cluster_to_name)
+        else:
+            print(f"Test image not found: {test_image}")
