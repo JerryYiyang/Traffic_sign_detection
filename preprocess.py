@@ -40,20 +40,18 @@ def shape_features(dir):
                 
                 # Apply the mask to the original image
                 segmented_image = cv2.bitwise_and(image, image, mask=mask)
-                cv2.imshow("Segmented Traffic Sign", segmented_image)
-                cv2.waitKey(0)
-            else:
-                cv2.imshow("NO DETECTED traffic Sign", image)
-                cv2.waitKey(0)
-            # # extract circles from image
-            # if circles is not None:
-            #     circles = np.uint16(np.around(circles))
-            #     for i in circles[0, :]:
-            #         cv2.circle(image, (i[0], i[1]), i[2], (0, 0, 255), 2)
-            #         cv2.circle(image, (i[0], i[1]), 2, (0, 0, 255), 3)
+                # Save the segmented image
+                base_name = os.path.splitext(img_file)[0]
+                os.makedirs("segmented_data", exist_ok=True)
+                output_path = os.path.join("segmented_data/", f"{base_name}_segmented.jpg")
+                cv2.imwrite(output_path, segmented_image)
 
-            # cv2.imshow("Detected Shapes", image) 
-            # cv2.waitKey(0)  
+                #cv2.imshow("Segmented Traffic Sign", segmented_image)
+                #cv2.waitKey(0)
+            #else:
+                #cv2.imshow("NO DETECTED traffic Sign", image)
+                #cv2.waitKey(0)
+                
             count += 1
         except Exception as e:
             print(f"Error processing {img_file}: {str(e)}")
